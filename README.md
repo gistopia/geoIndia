@@ -1,3 +1,6 @@
+# _THIS REPOSITORY IS NO LONGER BEING MAINTAINED. PLEASE PROCEED TO https://github.com/mnitin73/geoIndia FOR ACCESSING THE LATEST SHAPEFILES._
+
+
 # geoIndia
 Shapefiles and Geojsons of India according to Indians - For use in research and other academic or personal projects by Indians.
 
